@@ -175,7 +175,7 @@
             {commitment: commitment}
             {
                 leaf-index: leaf-index,
-                timestamp: block-height
+                timestamp: stacks-block-height
             })
         
         ;; Update next index
@@ -183,4 +183,47 @@
         
         (ok leaf-index)
     )
+)
+
+(define-public (withdraw
+    (nullifier (buff 32))
+    (root (buff 32))
+    (proof (list 20 (buff 32)))
+    (recipient principal)
+    (token <ft-trait>)
+    (amount uint))
+    (begin
+        ;; Verify nullifier hasn't been used
+        (asserts! (is-none (map-get? nullifiers {nullifier: nullifier})) ERR-NULLIFIER-ALREADY-EXISTS)
+        
+        ;; Verify the merkle proof
+        (try! (verify-merkle-proof nullifier proof root))
+        
+        ;; Mark nullifier as used
+        (map-set nullifiers {nullifier: nullifier} {used: true})
+        
+        ;; Transfer tokens to recipient
+        (try! (as-contract (contract-call? token transfer amount tx-sender recipient none)))
+        
+        (ok true)
+    )
+)
+
+;; Read-only functions
+(define-read-only (get-current-root)
+    (ok (var-get current-root))
+)
+
+(define-read-only (is-nullifier-used (nullifier (buff 32)))
+    (is-some (map-get? nullifiers {nullifier: nullifier}))
+)
+
+(define-read-only (get-deposit-info (commitment (buff 32)))
+    (map-get? deposits {commitment: commitment})
+)
+
+;; Initialize contract
+(begin
+    (var-set current-root ZERO-VALUE)
+    (var-set next-index u0)
 )
